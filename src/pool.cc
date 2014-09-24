@@ -160,9 +160,6 @@ void pinba_temp_pool_dtor(void *pool) /* {{{ */
 	for (i = 0; i < p->size; i++) {
 		tmp_record = TMP_POOL(p) + i;
 		tmp_record->time.tv_sec = 0;
-		if (tmp_record->request && tmp_record->free) {
-			pinba__request__free_unpacked(tmp_record->request, NULL);
-		}
 	}
 }
 /* }}} */
@@ -1177,6 +1174,7 @@ void *pinba_stats_main(void *arg) /* {{{ */
 		pthread_rwlock_wrlock(&D->temp_lock);
 		if (LIKELY(pinba_pool_num_records(&D->temp_pool) > 0)) {
 			int timers_added = 0;
+			pinba_llist_t *nmpa_llist;
 
 			prev_request_id = request_pool->in;
 
@@ -1304,6 +1302,18 @@ void *pinba_stats_main(void *arg) /* {{{ */
 					request_pool->in += accounted;
 				}
 				temp_pool->out = temp_pool->in = 0;
+
+				nmpa_llist = D->nmpa_llist;
+				while (nmpa_llist != NULL) {
+					pinba_llist_t *entry = nmpa_llist;
+					pinba_nmpa_t *nmpa = (pinba_nmpa_t *)entry->data;
+
+					nmpa_llist = entry->next;
+					nmpa_free(&nmpa->nmpa);
+					free(nmpa);
+					free(entry);
+				}
+				D->nmpa_llist = NULL;
 
 				for (i = 0; i < D->thread_pool->size; i++) {
 					pinba_pool *temp_request_pool = D->per_thread_request_pools + i;

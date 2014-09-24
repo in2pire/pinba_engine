@@ -19,6 +19,8 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
+#include "nmpa_pba.h"
+
 int pinba_get_time_interval() /* {{{ */
 {
 	pinba_pool *p = &D->request_pool;
@@ -336,6 +338,7 @@ struct data_job_data {
 	int thread_num;
 	size_t invalid_packets;
 	size_t copied_packets;
+	pinba_nmpa_t *nmpa;
 };
 
 static void data_job_func(void *job_data) /* {{{ */
@@ -375,13 +378,11 @@ static void data_job_func(void *job_data) /* {{{ */
 
 			if (sub_request_num == -1) {
 
-				tmp_record->request = pinba__request__unpack(NULL, bucket->len, (const unsigned char *)bucket->buf);
+				tmp_record->request = pinba__request__unpack(&d->nmpa->nmpa_pba, bucket->len, (const unsigned char *)bucket->buf);
 				if (UNLIKELY(tmp_record->request == NULL)) {
 					d->invalid_packets++;
 					continue;
 				}
-
-				tmp_record->free = 1;
 
 				sub_request_num = tmp_record->request->n_requests;
 				if (sub_request_num > 0) {
@@ -392,7 +393,6 @@ static void data_job_func(void *job_data) /* {{{ */
 				}
 			} else {
 				tmp_record->request = parent_request->requests[current_sub_request];
-				tmp_record->free = 0;
 				current_sub_request++;
 			}
 			temp_pool->in++;
@@ -428,11 +428,7 @@ static void data_copy_job_func(void *job_data) /* {{{ */
 			tmp_record = TMP_POOL(temp_pool) + tmp_id;
 
 			tmp_record->time = thread_tmp_record->time;
-			if (tmp_record->request && tmp_record->free) {
-				pinba__request__free_unpacked(tmp_record->request, NULL);
-			}
 			tmp_record->request = thread_tmp_record->request;
-			tmp_record->free = thread_tmp_record->free;
 			thread_tmp_record->request = NULL;
 			d->copied_packets++;
 	}
@@ -441,9 +437,6 @@ cleanup:
 
 	for (; i < thread_temp_pool->in; i++) {
 		thread_tmp_record = TMP_POOL(thread_temp_pool) + i;
-		if (thread_tmp_record->request && thread_tmp_record->free) {
-			pinba__request__free_unpacked(thread_tmp_record->request, NULL);
-		}
 		thread_tmp_record->request = NULL;
 	}
 	thread_temp_pool->in = 0;
@@ -454,6 +447,7 @@ void *pinba_data_main(void *arg) /* {{{ */
 {
 	struct timeval launch;
 	struct data_job_data *job_data_arr;
+	size_t i;
 
 	pinba_debug("starting up data harvester thread");
 
@@ -472,7 +466,7 @@ void *pinba_data_main(void *arg) /* {{{ */
 			pinba_pool *data_pool = &D->data_pool;
 			pinba_pool *temp_pool = &D->temp_pool;
 			size_t accounted, job_size, invalid_packets;
-			size_t i = 0, num, old_num, old_in;
+			size_t num, old_num, old_in;
 			thread_pool_barrier_t barrier;
 
 			pthread_rwlock_unlock(&D->data_lock);
@@ -493,6 +487,11 @@ void *pinba_data_main(void *arg) /* {{{ */
 			}
 
 			memset(job_data_arr, 0, sizeof(struct data_job_data) * D->thread_pool->size);
+			for (i = 0; i < D->thread_pool->size; i++) {
+				job_data_arr[i].nmpa = (pinba_nmpa_t *)malloc(sizeof(pinba_nmpa_t));
+				nmpa_init(&job_data_arr[i].nmpa->nmpa, 65536);
+				nmpa_pba_init(job_data_arr[i].nmpa->nmpa_pba, &job_data_arr[i].nmpa->nmpa);
+			}
 
 			th_pool_barrier_init(&barrier);
 			th_pool_barrier_start(&barrier);
@@ -604,9 +603,8 @@ void *pinba_data_main(void *arg) /* {{{ */
 			accounted = 0;
 			for (i = 0; i < D->thread_pool->size; i++) {
 				accounted += job_data_arr[i].copied_packets;
+				pinba_llist_add_head(D->nmpa_llist, job_data_arr[i].nmpa);
 			}
-
-//			pinba_error(P_WARNING, "new packets: %d, num temp_pool: %d, temp_pool->in: %d", accounted, pinba_pool_num_records(temp_pool), temp_pool->in);
 
 			old_in = temp_pool->in;
 
@@ -615,6 +613,7 @@ void *pinba_data_main(void *arg) /* {{{ */
 			} else {
 				temp_pool->in += accounted;
 			}
+
 			if ((pinba_pool_num_records(temp_pool) - old_num) != accounted) {
 				pinba_error(P_WARNING, "new temp packets: %zd != accounted: %zd", pinba_pool_num_records(temp_pool) - old_num, accounted);
 				pinba_error(P_WARNING, "new packets: %zd, old temp_pool num: %zd, new temp_pool num: %zd, old temp_pool->in: %zd, new temp_pool->in: %zd", accounted, old_num, pinba_pool_num_records(temp_pool), old_in, temp_pool->in);

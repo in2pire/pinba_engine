@@ -17,6 +17,8 @@
 #ifndef PINBA_TYPES_H
 #define PINBA_TYPES_H
 
+#include "nmpa.h"
+
 /* max index string length */
 #define PINBA_MAX_LINE_LEN 8192
 
@@ -130,7 +132,6 @@ typedef struct _pinba_timer_record { /* {{{ */
 typedef struct _pinba_tmp_stats_record { /* {{{ */
 	Pinba__Request *request;
 	struct timeval time;
-	int free:1;
 } pinba_tmp_stats_record;
 /* }}} */
 
@@ -263,6 +264,43 @@ typedef struct _pinba_int_stats {
 	size_t invalid_request_data;
 } pinba_int_stats_t;
 
+typedef struct _pinba_nmpa {
+	ProtobufCAllocator nmpa_pba;
+	struct nmpa_s nmpa;
+} pinba_nmpa_t;
+
+struct _pinba_llist {
+	void *data;
+	struct _pinba_llist *next;
+};
+
+typedef struct _pinba_llist pinba_llist_t;
+
+#define pinba_llist_create(llist, _data)		\
+do {									\
+	llist = (pinba_llist_t *)malloc(sizeof(pinba_llist_t)); \
+	if (!llist) {						\
+		break;							\
+	}									\
+	llist->data = (void *)(_data);		\
+	llist->next = NULL;					\
+} while(0);
+
+#define pinba_llist_add_head(llist, _data)	\
+do {										\
+	pinba_llist_t *llist_new;				\
+	pinba_llist_create(llist_new, (_data));	\
+	if (!llist_new) {						\
+		break;								\
+	}										\
+	if ((llist) == NULL) {					\
+		(llist) = llist_new;				\
+	} else {								\
+		llist_new->next = (llist);			\
+		(llist) = llist_new;				\
+	}										\
+} while(0);
+
 typedef struct _pinba_daemon { /* {{{ */
 	pthread_rwlock_t collector_lock;
 	pthread_rwlock_t temp_lock;
@@ -299,6 +337,7 @@ typedef struct _pinba_daemon { /* {{{ */
 	thread_pool_t *thread_pool;
 	pinba_int_stats_t stats;
 	pthread_rwlock_t stats_lock;
+	pinba_llist_t *nmpa_llist;
 } pinba_daemon;
 /* }}} */
 
