@@ -22,8 +22,6 @@ static inline void nmpa___pba_free(void *v, void *ptr)
 #define nmpa_pba_init(nmpa_pba, nmpa) \
 	(nmpa_pba).alloc = nmpa___pba_alloc; \
 	(nmpa_pba).free = nmpa___pba_free; \
-	(nmpa_pba).tmp_alloc = NULL; \
-	(nmpa_pba).max_alloca = 0; \
 	(nmpa_pba).allocator_data = (nmpa);
 
 #endif
