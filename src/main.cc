@@ -614,10 +614,6 @@ void *pinba_data_main(void *arg) /* {{{ */
 				temp_pool->in += accounted;
 			}
 
-			if ((pinba_pool_num_records(temp_pool) - old_num) != accounted) {
-				pinba_error(P_WARNING, "new temp packets: %zd != accounted: %zd", pinba_pool_num_records(temp_pool) - old_num, accounted);
-				pinba_error(P_WARNING, "new packets: %zd, old temp_pool num: %zd, new temp_pool num: %zd, old temp_pool->in: %zd, new temp_pool->in: %zd", accounted, old_num, pinba_pool_num_records(temp_pool), old_in, temp_pool->in);
-			}
 			pthread_rwlock_unlock(&D->temp_lock);
 		}
 
