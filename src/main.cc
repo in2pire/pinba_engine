@@ -426,9 +426,6 @@ static void data_copy_job_func(void *job_data) /* {{{ */
 			tmp_record = TMP_POOL(temp_pool) + tmp_id;
 
 			tmp_record->time = thread_tmp_record->time;
-			if (tmp_record->request && tmp_record->free) {
-				pinba__request__free_unpacked(tmp_record->request, NULL);
-			}
 			tmp_record->request = thread_tmp_record->request;
 			tmp_record->free = thread_tmp_record->free;
 			thread_tmp_record->request = NULL;
@@ -436,7 +433,6 @@ static void data_copy_job_func(void *job_data) /* {{{ */
 	}
 
 cleanup:
-
 	for (; i < thread_temp_pool->in; i++) {
 		thread_tmp_record = TMP_POOL(thread_temp_pool) + i;
 		if (thread_tmp_record->request && thread_tmp_record->free) {
