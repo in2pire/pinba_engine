@@ -1,4 +1,4 @@
-AC_INIT([pinba_engine], [1.1.0-dev])
+AC_INIT([pinba_engine], [1.1.0])
 AC_CONFIG_MACRO_DIR([m4])
 AM_CONFIG_HEADER(src/config.h)
 AX_PREFIX_CONFIG_H([src/pinba_config.h])
@@ -226,9 +226,9 @@ int main() {
     LIBRT_REQUIRED="no"
   ], [
     if test "$PINBA_RPATH" != "no"; then
-      LDFLAGS="$ld_runpath_switch$LIBEVENT_DIR/$LIBDIR -L$LIBEVENT_DIR/$LIBDIR -levent -rt"
+      LDFLAGS="$ld_runpath_switch$LIBEVENT_DIR/$LIBDIR -L$LIBEVENT_DIR/$LIBDIR -levent -lrt"
     else
-      LDFLAGS="-L$LIBEVENT_DIR/$LIBDIR -levent -rt"
+      LDFLAGS="-L$LIBEVENT_DIR/$LIBDIR -levent -lrt"
     fi
     AC_TRY_RUN([
 #include <stdlib.h>
